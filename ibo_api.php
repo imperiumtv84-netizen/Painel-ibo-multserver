@@ -1,56 +1,35 @@
 <?php
-include 'config.php';
-
-// Função para iniciar a sessão e pegar a imagem do Captcha
-function carregarCaptcha() {
+// No topo do ibo_api.php, adicione estas linhas para lidar com o aceite legal
+function iniciarSessaoIbo() {
     global $cookie_file;
-    $url_login = "https://iboplayer.com/device/login";
-
-    $ch = curl_init($url_login);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_COOKIEJAR, $cookie_file); // Cria o arquivo de sessão
-    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    $url = "https://iboplayer.com/device/login";
     
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_COOKIEJAR, $cookie_file);
+    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36");
+    
+    // Simula o clique no "Accept legal terms" se necessário
+    // Muitas vezes apenas carregar a página e salvar o cookie já basta
     $html = curl_exec($ch);
     curl_close($ch);
-
-    // Busca a URL da imagem do captcha no HTML (Geralmente está em uma tag <img>)
-    // Nota: O seletor abaixo pode precisar de ajuste se o IBO mudar o ID da imagem
-    preg_match('/<img src="([^"]+captcha[^"]+)"/i', $html, $matches);
     
-    return [
-        'html' => $html,
-        'captcha_url' => $matches[1] ?? null
-    ];
+    return $html;
 }
 
-// Função para enviar os dados para o IBO
-function enviarPlaylist($mac, $key, $dns, $user, $pass, $captcha_solucao) {
+function carregarCaptcha() {
     global $cookie_file;
-    $url_post = "https://iboplayer.com/device/login"; // URL onde o form é enviado
+    $html = iniciarSessaoIbo();
 
-    // Dados que o formulário do IBO normalmente pede
-    $campos = [
-        'mac_address' => $mac,
-        'device_key'  => $key,
-        'playlist_name' => "Servidor_" . rand(10, 99), // Nome aleatório para não dar erro
-        'username'    => $user,
-        'password'    => $pass,
-        'dns_url'     => $dns,
-        'captcha'     => $captcha_solucao,
-        'login_btn'   => 'Login' // O nome do botão de envio
-    ];
-
-    $ch = curl_init($url_post);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($campos));
-    curl_setopt($ch, CURLOPT_COOKIEFILE, $cookie_file); // Usa a mesma sessão do captcha
-    curl_setopt($ch, CURLOPT_REFERER, "https://iboplayer.com/device/login");
-    
-    $resposta = curl_exec($ch);
-    curl_close($ch);
-
-    return $resposta;
+    // O IBO Player costuma usar uma URL de imagem como /include/captcha.php
+    // Vamos capturar a URL completa da imagem para exibir no seu painel
+    if (preg_match('/<img[^>]+src="([^"]*captcha[^"]*)"/i', $html, $matches)) {
+        $captcha_url = $matches[1];
+        // Se a URL for relativa (ex: /include/captcha.php), adicionamos o domínio
+        if (strpos($captcha_url, 'http') === false) {
+            $captcha_url = "https://iboplayer.com" . $captcha_url;
+        }
+        return $captcha_url;
+    }
+    return null;
 }
-?>
